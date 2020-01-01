@@ -13,7 +13,7 @@
 Name:           systemd
 Url:            http://www.freedesktop.org/wiki/Software/systemd
 Version:        239
-Release:        13%{?dist}.5
+Release:        9913%{?dist}.5.0+custom1+1
 # For a breakdown of the licensing, see README
 License:        LGPLv2+ and MIT and GPLv2+
 Summary:        System and Service Manager
@@ -145,7 +145,7 @@ Patch0092: 0092-Refuse-dbus-message-paths-longer-than-BUS_PATH_SIZE_.patch
 Patch0093: 0093-Allocate-temporary-strings-to-hold-dbus-paths-on-the.patch
 Patch0094: 0094-sd-bus-if-we-receive-an-invalid-dbus-message-ignore-.patch
 Patch0095: 0095-Revert-core-one-step-back-again-for-nspawn-we-actual.patch
-
+Patch0096: 0096-shutdown-sleep.patch
 
 %ifarch %{ix86} x86_64 aarch64
 %global have_gnu_efi 1
@@ -764,6 +764,9 @@ fi
 %files tests -f .file-list-tests
 
 %changelog
+* Tue Dec 31 2019 Dev Ops <root@localhost> - 239-9913.5.0+custom1+1
+- rebuilt
+
 * Thu May 02 2019 Lukas Nykryn <lnykryn@redhat.com> - 239-13.5
 - rebuilt
 

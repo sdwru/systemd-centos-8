@@ -1,0 +1,14 @@
+From: Dev Ops <root@localhost>
+
+diff -Naur systemd-239.orig/src/core/shutdown.c systemd-239/src/core/shutdown.c
+--- systemd-239.orig/src/core/shutdown.c	2019-12-31 18:51:59.491937046 -0500
++++ systemd-239/src/core/shutdown.c	2019-12-31 18:53:15.000000000 -0500
+@@ -323,7 +323,7 @@
+ 
+         log_info("Sending SIGTERM to remaining processes...");
+         broadcast_signal(SIGTERM, true, true, arg_timeout);
+-
++        sleep(1);
+         log_info("Sending SIGKILL to remaining processes...");
+         broadcast_signal(SIGKILL, true, false, arg_timeout);
+ 
