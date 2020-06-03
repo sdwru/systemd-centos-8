@@ -222,6 +222,15 @@ static inline unsigned long ALIGN_POWER2(unsigned long u) {
                 UNIQ_T(A,aq) > UNIQ_T(B,bq) ? UNIQ_T(A,aq) - UNIQ_T(B,bq) : 0; \
         })
 
+#define CMP(a, b) __CMP(UNIQ, (a), UNIQ, (b))
+#define __CMP(aq, a, bq, b)                             \
+        ({                                              \
+                const typeof(a) UNIQ_T(A, aq) = (a);    \
+                const typeof(b) UNIQ_T(B, bq) = (b);    \
+                UNIQ_T(A, aq) < UNIQ_T(B, bq) ? -1 :    \
+                UNIQ_T(A, aq) > UNIQ_T(B, bq) ? 1 : 0;  \
+        })
+
 #undef CLAMP
 #define CLAMP(x, low, high) __CLAMP(UNIQ, (x), UNIQ, (low), UNIQ, (high))
 #define __CLAMP(xq, x, lowq, low, highq, high)                          \
@@ -240,12 +249,13 @@ static inline unsigned long ALIGN_POWER2(unsigned long u) {
  * computation should be possible in the given type. Therefore, we use
  * [x / y + !!(x % y)]. Note that on "Real CPUs" a division returns both the
  * quotient and the remainder, so both should be equally fast. */
-#define DIV_ROUND_UP(_x, _y)                                            \
-        __extension__ ({                                                \
-                const typeof(_x) __x = (_x);                            \
-                const typeof(_y) __y = (_y);                            \
-                (__x / __y + !!(__x % __y));                            \
-        })
+#define DIV_ROUND_UP(x, y) __DIV_ROUND_UP(UNIQ, (x), UNIQ, (y))
+#define __DIV_ROUND_UP(xq, x, yq, y)                                    \
+        ({                                                              \
+                const typeof(x) UNIQ_T(X, xq) = (x);                    \
+                const typeof(y) UNIQ_T(Y, yq) = (y);                    \
+                (UNIQ_T(X, xq) / UNIQ_T(Y, yq) + !!(UNIQ_T(X, xq) % UNIQ_T(Y, yq))); \
+         })
 
 #define assert_message_se(expr, message)                                \
         do {                                                            \

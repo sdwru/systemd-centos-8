@@ -782,6 +782,7 @@ conf.set10('ENABLE_DEBUG_HASHMAP', enable_debug_hashmap)
 conf.set10('ENABLE_DEBUG_MMAP_CACHE', enable_debug_mmap_cache)
 
 conf.set10('VALGRIND', get_option('valgrind'))
+conf.set10('LOG_TRACE', get_option('log-trace'))
 
 #####################################################################
 
@@ -1215,7 +1216,6 @@ foreach term : ['utmp',
                 'networkd',
                 'timedated',
                 'timesyncd',
-                'myhostname',
                 'firstboot',
                 'randomseed',
                 'backlight',
@@ -1232,11 +1232,38 @@ foreach term : ['utmp',
                 'smack',
                 'gshadow',
                 'idn',
+                'nss-myhostname',
                 'nss-systemd']
         have = get_option(term)
         name = 'ENABLE_' + term.underscorify().to_upper()
         conf.set10(name, have)
 endforeach
+
+foreach tuple : [['nss-mymachines', 'machined'],
+                 ['nss-resolve',    'resolve']]
+        want = get_option(tuple[0])
+        if want != 'false'
+                have = get_option(tuple[1])
+                if want == 'true' and not have
+                        error('@0@ is requested but @1@ is disabled'.format(tuple[0], tuple[1]))
+                endif
+        else
+                have = false
+        endif
+        name = 'ENABLE_' + tuple[0].underscorify().to_upper()
+        conf.set10(name, have)
+endforeach
+
+enable_nss = false
+foreach term : ['ENABLE_NSS_MYHOSTNAME',
+                'ENABLE_NSS_MYMACHINES',
+                'ENABLE_NSS_RESOLVE',
+                'ENABLE_NSS_SYSTEMD']
+        if conf.get(term) == 1
+                enable_nss = true
+        endif
+endforeach
+conf.set10('ENABLE_NSS', enable_nss)
 
 conf.set10('ENABLE_TIMEDATECTL', get_option('timedated') or get_option('timesyncd'))
 
@@ -1416,17 +1443,17 @@ test_dlopen = executable(
         link_with : [libbasic],
         dependencies : [libdl])
 
-foreach tuple : [['myhostname', 'ENABLE_MYHOSTNAME'],
+foreach tuple : [['myhostname', 'ENABLE_NSS_MYHOSTNAME'],
                  ['systemd',    'ENABLE_NSS_SYSTEMD'],
-                 ['mymachines', 'ENABLE_MACHINED'],
-                 ['resolve',    'ENABLE_RESOLVE']]
+                 ['mymachines', 'ENABLE_NSS_MYMACHINES'],
+                 ['resolve',    'ENABLE_NSS_RESOLVE']]
 
         condition = tuple[1] == '' or conf.get(tuple[1]) == 1
         if condition
                 module = tuple[0]
 
                 sym = 'src/nss-@0@/nss-@0@.sym'.format(module)
-                version_script_arg = join_paths(meson.current_source_dir(), sym)
+                version_script_arg = join_paths(meson.source_root(), sym)
 
                 nss = shared_library(
                         'nss_' + module,
@@ -1436,8 +1463,7 @@ foreach tuple : [['myhostname', 'ENABLE_MYHOSTNAME'],
                         # Note that we link NSS modules with '-z nodelete' so that mempools never get orphaned
                         link_args : ['-Wl,-z,nodelete',
                                      '-shared',
-                                     '-Wl,--version-script=' + version_script_arg,
-                                     '-Wl,--undefined'],
+                                     '-Wl,--version-script=' + version_script_arg],
                         link_with : [libsystemd_static,
                                      libbasic],
                         dependencies : [threads,
@@ -1678,7 +1704,7 @@ if conf.get('ENABLE_LOGIND') == 1
         public_programs += [exe]
 
         if conf.get('HAVE_PAM') == 1
-                version_script_arg = join_paths(meson.current_source_dir(), pam_systemd_sym)
+                version_script_arg = join_paths(meson.source_root(), pam_systemd_sym)
                 pam_systemd = shared_library(
                         'pam_systemd',
                         pam_systemd_c,
@@ -2778,9 +2804,7 @@ foreach tuple : sanitizers
                                 test('@0@:@1@:@2@'.format(b, c, sanitizer),
                                      env,
                                      args : [exe.full_path(),
-                                             join_paths(meson.source_root(),
-                                                        'test/fuzz-regressions',
-                                                        p)])
+                                             join_paths(meson.source_root(), p)])
                         endif
                 endforeach
         endif
@@ -2792,7 +2816,7 @@ endforeach
 if git.found()
         all_files = run_command(
                 git,
-                ['--git-dir=@0@/.git'.format(meson.current_source_dir()),
+                ['--git-dir=@0@/.git'.format(meson.source_root()),
                  'ls-files',
                  ':/*.[ch]'])
         all_files = files(all_files.stdout().split())
@@ -2800,10 +2824,10 @@ if git.found()
         custom_target(
                 'tags',
                 output : 'tags',
-                command : [env, 'etags', '-o', '@0@/TAGS'.format(meson.current_source_dir())] + all_files)
+                command : [env, 'etags', '-o', '@0@/TAGS'.format(meson.source_root())] + all_files)
         run_target(
                 'ctags',
-                command : [env, 'ctags', '-o', '@0@/tags'.format(meson.current_source_dir())] + all_files)
+                command : [env, 'ctags', '-o', '@0@/tags'.format(meson.source_root())] + all_files)
 endif
 
 if git.found()
@@ -2816,17 +2840,17 @@ endif
 if git.found()
         git_head = run_command(
                 git,
-                ['--git-dir=@0@/.git'.format(meson.current_source_dir()),
+                ['--git-dir=@0@/.git'.format(meson.source_root()),
                  'rev-parse', 'HEAD']).stdout().strip()
         git_head_short = run_command(
                 git,
-                ['--git-dir=@0@/.git'.format(meson.current_source_dir()),
+                ['--git-dir=@0@/.git'.format(meson.source_root()),
                  'rev-parse', '--short=7', 'HEAD']).stdout().strip()
 
         run_target(
                 'git-snapshot',
                 command : ['git', 'archive',
-                           '-o', '@0@/systemd-@1@.tar.gz'.format(meson.current_source_dir(),
+                           '-o', '@0@/systemd-@1@.tar.gz'.format(meson.source_root(),
                                                                  git_head_short),
                            '--prefix', 'systemd-@0@/'.format(git_head),
                            'HEAD'])
@@ -2945,7 +2969,6 @@ foreach tuple : [
         ['idn'],
         ['libidn2'],
         ['libidn'],
-        ['nss-systemd'],
         ['libiptc'],
         ['elfutils'],
         ['binfmt'],
@@ -2980,7 +3003,10 @@ foreach tuple : [
         ['blkid'],
         ['dbus'],
         ['glib'],
-        ['nss-myhostname',   conf.get('ENABLE_MYHOSTNAME') == 1],
+        ['nss-myhostname'],
+        ['nss-mymachines'],
+        ['nss-resolve'],
+        ['nss-systemd'],
         ['hwdb'],
         ['tpm'],
         ['man pages',        want_man],
@@ -2996,6 +3022,7 @@ foreach tuple : [
         ['debug hashmap'],
         ['debug mmap cache'],
         ['valgrind',         conf.get('VALGRIND') == 1],
+        ['trace logging',    conf.get('LOG_TRACE') == 1],
 ]
 
         if tuple.length() >= 2

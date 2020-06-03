@@ -113,9 +113,7 @@ static inline void qsort_r_safe(void *base, size_t nmemb, size_t size, int (*com
         qsort_r(base, nmemb, size, compar, userdata);
 }
 
-/**
- * Normal memcpy requires src to be nonnull. We do nothing if n is 0.
- */
+/* Normal memcpy requires src to be nonnull. We do nothing if n is 0. */
 static inline void memcpy_safe(void *dst, const void *src, size_t n) {
         if (n == 0)
                 return;
@@ -123,9 +121,24 @@ static inline void memcpy_safe(void *dst, const void *src, size_t n) {
         memcpy(dst, src, n);
 }
 
+/* Normal memcmp requires s1 and s2 to be nonnull. We do nothing if n is 0. */
+static inline int memcmp_safe(const void *s1, const void *s2, size_t n) {
+        if (n == 0)
+                return 0;
+        assert(s1);
+        assert(s2);
+        return memcmp(s1, s2, n);
+}
+
 int on_ac_power(void);
 
-#define memzero(x,l) (memset((x), 0, (l)))
+#define memzero(x,l)                                            \
+        ({                                                      \
+                size_t _l_ = (l);                               \
+                void *_x_ = (x);                                \
+                _l_ == 0 ? _x_ : memset(_x_, 0, _l_);           \
+        })
+
 #define zero(x) (memzero(&(x), sizeof(x)))
 
 static inline void *mempset(void *s, int c, size_t n) {
@@ -134,10 +147,19 @@ static inline void *mempset(void *s, int c, size_t n) {
 }
 
 static inline void _reset_errno_(int *saved_errno) {
+        if (*saved_errno < 0) /* Invalidated by UNPROTECT_ERRNO? */
+                return;
+
         errno = *saved_errno;
 }
 
 #define PROTECT_ERRNO _cleanup_(_reset_errno_) __attribute__((unused)) int _saved_errno_ = errno
+
+#define UNPROTECT_ERRNO                         \
+        do {                                    \
+                errno = _saved_errno_;          \
+                _saved_errno_ = -1;             \
+        } while (false)
 
 static inline int negative_errno(void) {
         /* This helper should be used to shut up gcc if you know 'errno' is
